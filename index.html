@@ -400,16 +400,13 @@
     <!-- JAVASCRIPT LOGIC -->
     <script>
         /* =========================================================================
-         * [개발자 설정] 몬스터 이미지 URL 직접 지정
-         * 본인의 원하는 이미지 주소(상대 경로 또는 외부 웹 URL)로 여기서 변경할 수 있습니다.
-         * 예: "./images/monster1.png" 또는 "https://your-domain.com/boss.jpg"
+         * [개발자 설정] 몬스터 이미지 경로 설정
          * ========================================================================= */
         const MONSTER_IMAGES = {
-    1: 'mob1.jpg',
-    2: 'mob2.jpg',
-    3: 'mob3.jpg'
-};
-
+            STAGE_1: 'mob1.jpg',
+            STAGE_2: 'mob2.jpg',
+            STAGE_3: 'mob3.jpg'
+        };
 
         /* Stage Monster Configurations */
         const defaultMonsters = [
@@ -575,17 +572,14 @@
 
         /* Update UI View */
         function updateUI() {
-            // Monster Info Update
             monsterName.innerText = currentMonster.name;
             monsterHpText.innerText = `${Math.max(0, currentMonster.hp)} / ${currentMonster.maxHp}`;
             const mHpPercent = Math.max(0, (currentMonster.hp / currentMonster.maxHp) * 100);
             monsterHpBar.style.width = `${mHpPercent}%`;
             monsterImg.src = currentMonster.img;
 
-            // Stage Badge Update
             stageBadge.innerText = `STAGE ${currentMonster.stage}: 게이 던전 (${currentMonster.name})`;
 
-            // Player Info Update
             playerHpText.innerText = `${Math.max(0, player.hp)}/${player.maxHp}`;
             playerHpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 
@@ -620,15 +614,12 @@
                 dmg = Math.floor(dmg * 1.5);
             }
 
-            // Slash Animation
             slashEffect.classList.add('slash-active');
             setTimeout(() => slashEffect.classList.remove('slash-active'), 250);
 
-            // Hit Animation
             monsterContainer.classList.add('monster-hit');
             setTimeout(() => monsterContainer.classList.remove('monster-hit'), 250);
 
-            // Particles
             const rect = monsterContainer.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
