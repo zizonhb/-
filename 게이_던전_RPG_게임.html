@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>게이 던전 (Gay Dungeon) - 모바일 RPG</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Gothic A1', sans-serif;
+            background-color: #08070d;
+            color: #e2e8f0;
+            user-select: none;
+            overflow-x: hidden;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+        }
+
+        html {
+            height: -webkit-fill-available;
+        }
+
+        /* Rainbow Gradient Effect for Title */
+        .text-rainbow {
+            background: linear-gradient(90deg, #ff2a75, #ff7e00, #ffeb00, #00e676, #00b0ff, #9c27b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: rainbowGlow 3s linear infinite;
+        }
+
+        @keyframes rainbowGlow {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        /* Canvas Overlay for Particle Effects */
+        #effectsCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        /* Screen Shake Effect */
+        .shake {
+            animation: mobileShake 0.35s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes mobileShake {
+            10%, 90% { transform: translate3d(-4px, 0, 0); }
+            20%, 80% { transform: translate3d(6px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+            40%, 60% { transform: translate3d(8px, 0, 0); }
+        }
+
+        /* Floating Damage Text Popup */
+        .damage-popup {
+            position: absolute;
+            font-weight: 900;
+            font-size: 1.8rem;
+            pointer-events: none;
+            z-index: 45;
+            animation: floatDamage 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+            text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 15px currentColor;
+        }
+
+        @keyframes floatDamage {
+            0% { opacity: 1; transform: translateY(0) scale(0.6); }
+            30% { opacity: 1; transform: translateY(-30px) scale(1.3); }
+            100% { opacity: 0; transform: translateY(-65px) scale(1); }
+        }
+
+        /* Monster Floating Animation */
+        .monster-idle {
+            animation: monsterFloat 3s infinite ease-in-out;
+        }
+
+        @keyframes monsterFloat {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-10px) scale(1.02); }
+        }
+
+        .monster-hit {
+            animation: hitFlash 0.25s ease-out;
+        }
+
+        @keyframes hitFlash {
+            0% { filter: brightness(3) contrast(2) sepia(1) hue-rotate(300deg); transform: scale(0.92); }
+            100% { filter: brightness(1); transform: scale(1); }
+        }
+
+        /* Boss Entrance Animation */
+        .boss-cutin {
+            animation: bossAppear 0.8s ease-out forwards;
+        }
+
+        @keyframes bossAppear {
+            0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+            50% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* Slash Visual FX Overlay */
+        .slash-fx {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent 42%, #e02424 48%, #ffffff 52%, transparent 58%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 35;
+        }
+        .slash-active {
+            animation: slashTrigger 0.25s ease-out;
+        }
+        @keyframes slashTrigger {
+            0% { opacity: 0; transform: scale(0.5) rotate(-45deg); }
+            50% { opacity: 1; transform: scale(1.2) rotate(0deg); }
+            100% { opacity: 0; transform: scale(1.5) rotate(45deg); }
+        }
+
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 1rem);
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-between items-center relative bg-slate-950 text-slate-100 select-none overflow-hidden">
+
+    <!-- Canvas Particle Effect Overlay -->
+    <canvas id="effectsCanvas"></canvas>
+
+    <!-- Mobile Header Bar -->
+    <header class="w-full max-w-md bg-slate-900/90 backdrop-blur border-b border-purple-900/50 px-4 py-3 flex justify-between items-center z-10 shadow-lg">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-dungeon text-pink-500 text-xl animate-pulse"></i>
+            <h1 class="text-lg font-black tracking-wider text-rainbow">
+                게이 던전
+            </h1>
+        </div>
+        <button id="btnOpenShop" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white text-xs font-bold rounded-lg shadow active:scale-95 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-store"></i>
+            <span>상점</span>
+        </button>
+    </header>
+
+    <!-- Main Game Container -->
+    <main id="gameContainer" class="w-full max-w-md flex-1 flex flex-col justify-between p-3 relative z-10 my-auto">
+        
+        <!-- Stage Info Badge -->
+        <div class="text-center my-0.5">
+            <span id="stageBadge" class="inline-block px-4 py-1 rounded-full bg-purple-950/80 border border-purple-500/40 text-purple-200 font-bold text-xs tracking-wider shadow">
+                STAGE 1: 1단계 하급 몬스터
+            </span>
+        </div>
+
+        <!-- Monster Canvas Display Area -->
+        <div class="relative flex flex-col items-center justify-center my-auto py-2">
+            <!-- Slash visual overlay -->
+            <div id="slashEffect" class="slash-fx"></div>
+
+            <!-- Monster HP Bar -->
+            <div class="w-full max-w-xs mb-2 px-2">
+                <div class="flex justify-between text-xs font-bold mb-1">
+                    <span id="monsterName" class="text-amber-400 drop-shadow">하급 슬라임</span>
+                    <span id="monsterHpText" class="text-slate-300">50 / 50</span>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-3.5 p-0.5 border border-slate-700 shadow-inner">
+                    <div id="monsterHpBar" class="bg-gradient-to-r from-pink-500 to-purple-600 h-full rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(236,72,153,0.6)]" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- Fixed Monster Image Container -->
+            <div id="monsterContainer" class="relative monster-idle my-1">
+                <img id="monsterImg" src="" alt="Monster" 
+                     class="w-36 h-36 sm:w-44 sm:h-44 object-cover rounded-2xl border-2 border-purple-500/60 bg-slate-900 shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all">
+            </div>
+        </div>
+
+        <!-- Battle Log -->
+        <div id="battleLog" class="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 h-20 overflow-y-auto mb-2 text-xs font-mono space-y-1 shadow-inner">
+            <p class="text-purple-400"><i class="fa-solid fa-circle-info mr-1"></i> 게이 던전에 입장했습니다! 몬스터를 제압하세요.</p>
+        </div>
+
+        <!-- Player Dashboard HUD -->
+        <div class="bg-slate-900/95 border border-purple-900/50 rounded-2xl p-3 shadow-2xl backdrop-blur pb-safe">
+            <!-- Player Stats Grid -->
+            <div class="grid grid-cols-2 gap-2 mb-2.5">
+                <!-- HP Bar -->
+                <div class="bg-slate-950 p-2 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center text-xs text-rose-400 font-bold mb-1">
+                        <span><i class="fa-solid fa-heart mr-1"></i>체력 (HP)</span>
+                        <span id="playerHpText">100/100</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="playerHpBar" class="bg-rose-500 h-full transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <!-- MP Bar -->
+                <div class="bg-slate-950 p-2 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center text-xs text-sky-400 font-bold mb-1">
+                        <span><i class="fa-solid fa-bolt mr-1"></i>마나 (MP)</span>
+                        <span id="playerMpText">50/50</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="playerMpBar" class="bg-sky-500 h-full transition-all duration-300" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Status Strip -->
+            <div class="grid grid-cols-4 gap-1.5 mb-2.5 text-center text-xs bg-slate-950 p-2 rounded-xl border border-slate-800">
+                <div>
+                    <span class="block text-slate-500 text-[10px]">레벨</span>
+                    <span id="playerLevel" class="text-purple-300 font-bold">Lv.1</span>
+                </div>
+                <div>
+                    <span class="block text-slate-500 text-[10px]">골드</span>
+                    <span id="playerGold" class="text-amber-400 font-bold">0 G</span>
+                </div>
+                <div>
+                    <span class="block text-slate-500 text-[10px]">공격력</span>
+                    <span id="playerAtk" class="text-orange-400 font-bold">16</span>
+                </div>
+                <div>
+                    <span class="block text-slate-500 text-[10px]">방어력</span>
+                    <span id="playerDef" class="text-emerald-400 font-bold">2</span>
+                </div>
+            </div>
+
+            <!-- Touch Control Buttons -->
+            <div class="grid grid-cols-3 gap-2 mb-1.5">
+                <button id="btnAttack" class="bg-gradient-to-r from-red-600 to-rose-700 active:from-red-700 active:to-rose-800 text-white font-bold py-3 px-1 rounded-xl shadow-md border border-red-500/30 active:scale-95 transition flex flex-col items-center justify-center text-xs gap-0.5">
+                    <i class="fa-solid fa-sword text-sm"></i>
+                    <span>공격</span>
+                </button>
+                <button id="btnSkill" class="bg-gradient-to-r from-purple-600 to-indigo-700 active:from-purple-700 active:to-indigo-800 text-white font-bold py-3 px-1 rounded-xl shadow-md border border-purple-500/30 active:scale-95 transition flex flex-col items-center justify-center text-xs gap-0.5">
+                    <i class="fa-solid fa-fire text-sm"></i>
+                    <span>필살기 (MP15)</span>
+                </button>
+                <button id="btnDefend" class="bg-gradient-to-r from-emerald-600 to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold py-3 px-1 rounded-xl shadow-md border border-emerald-500/30 active:scale-95 transition flex flex-col items-center justify-center text-xs gap-0.5">
+                    <i class="fa-solid fa-shield-halved text-sm"></i>
+                    <span>방어</span>
+                </button>
+            </div>
+
+            <!-- Potion Buttons -->
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btnUseSmallPotion" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-800 text-slate-200 font-bold py-2 px-2 rounded-xl border border-slate-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs">
+                    <i class="fa-solid fa-flask text-pink-400"></i>
+                    <span>소형 물약 (<span id="smallPotionCount">2</span>)</span>
+                </button>
+                <button id="btnUseLargePotion" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-800 text-slate-200 font-bold py-2 px-2 rounded-xl border border-slate-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs">
+                    <i class="fa-solid fa-flask-vial text-purple-400"></i>
+                    <span>대형 물약 (<span id="largePotionCount">0</span>)</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- SHOP MODAL -->
+    <div id="shopModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+        <div class="bg-slate-900 border-t sm:border border-purple-900/60 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-4 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
+                <h2 class="text-base font-bold text-amber-400 flex items-center gap-2">
+                    <i class="fa-solid fa-store"></i> 게이 던전 비밀 상점
+                </h2>
+                <button id="btnCloseShop" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-2.5 overflow-y-auto pr-1 flex-1">
+                <!-- Small Potion -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-pink-900/40 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                            <i class="fa-solid fa-flask"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">소형 체력 물약</div>
+                            <div class="text-[10px] text-slate-400">HP +40 회복</div>
+                        </div>
+                    </div>
+                    <button id="buySmallPotion" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        30 G
+                    </button>
+                </div>
+
+                <!-- Large Potion -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-purple-900/40 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                            <i class="fa-solid fa-flask-vial"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">대형 체력 물약</div>
+                            <div class="text-[10px] text-slate-400">HP +100 회복</div>
+                        </div>
+                    </div>
+                    <button id="buyLargePotion" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        75 G
+                    </button>
+                </div>
+
+                <!-- Mana Potion -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-sky-900/40 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">마나 엘릭서</div>
+                            <div class="text-[10px] text-slate-400">MP +30 회복</div>
+                        </div>
+                    </div>
+                    <button id="buyManaPotion" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        40 G
+                    </button>
+                </div>
+
+                <!-- Weapon Upgrade 1 -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-orange-900/40 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                            <i class="fa-solid fa-khanda"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">네온 강철 검</div>
+                            <div class="text-[10px] text-slate-400">공격력 +10 상승</div>
+                        </div>
+                    </div>
+                    <button id="buyWeapon1" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        80 G
+                    </button>
+                </div>
+
+                <!-- Weapon Upgrade 2 -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-yellow-900/40 border border-yellow-500/30 flex items-center justify-center text-yellow-400">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">게이 던전 신화검</div>
+                            <div class="text-[10px] text-slate-400">공격력 +25 상승</div>
+                        </div>
+                    </div>
+                    <button id="buyWeapon2" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        200 G
+                    </button>
+                </div>
+
+                <!-- Armor Upgrade -->
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-lg bg-emerald-900/40 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                            <i class="fa-solid fa-shield-cat"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200 text-xs">빛나는 가디언 갑옷</div>
+                            <div class="text-[10px] text-slate-400">방어력 +5, Max HP +30</div>
+                        </div>
+                    </div>
+                    <button id="buyArmor" class="px-3 py-1.5 bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-lg active:scale-95 transition shadow">
+                        140 G
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER & VICTORY MODAL -->
+    <div id="resultModal" class="fixed inset-0 bg-black/90 backdrop-blur-lg z-50 flex flex-col items-center justify-center p-4 hidden">
+        <div class="text-center space-y-4 max-w-xs w-full bg-slate-900/90 border border-purple-900/60 p-6 rounded-2xl shadow-2xl">
+            <div id="resultIcon" class="text-5xl text-red-500 mb-1">
+                <i class="fa-solid fa-skull animate-bounce"></i>
+            </div>
+            <h2 id="resultTitle" class="text-2xl font-black text-red-500 tracking-wide">GAME OVER</h2>
+            <p id="resultDesc" class="text-slate-300 text-xs leading-relaxed">체력이 바닥났습니다! 게이 던전의 깊은 어둠에 쓰러졌습니다.</p>
+            <button id="btnRestart" class="w-full py-3 bg-gradient-to-r from-red-600 to-amber-600 active:from-red-700 active:to-amber-700 text-white font-bold text-xs rounded-xl shadow-xl border border-amber-500/30 transition transform active:scale-95">
+                1단계부터 다시 도전하기
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        /* =========================================================================
+         * [개발자 설정] 몬스터 이미지 URL 직접 지정
+         * 본인의 원하는 이미지 주소(상대 경로 또는 외부 웹 URL)로 여기서 변경할 수 있습니다.
+         * 예: "./images/monster1.png" 또는 "https://your-domain.com/boss.jpg"
+         * ========================================================================= */
+        const MONSTER_IMAGES = {
+            STAGE_1: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=60", // 1단계: 하급 몹 (슬라임/야수)
+            STAGE_2: "https://images.unsplash.com/photo-1563089145-599997674d42?w=400&auto=format&fit=crop&q=60", // 2단계: 중급 몹 (오크/기사)
+            STAGE_3: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&auto=format&fit=crop&q=60"  // 3단계: 최종 보스 (드래곤/마왕)
+        };
+
+        /* Stage Monster Configurations */
+        const defaultMonsters = [
+            {
+                stage: 1,
+                name: "하급 야수 (1단계)",
+                maxHp: 50,
+                hp: 50,
+                atk: 8,
+                goldReward: 35,
+                expReward: 30,
+                img: MONSTER_IMAGES.STAGE_1
+            },
+            {
+                stage: 2,
+                name: "중급 던전 수호자 (2단계)",
+                maxHp: 160,
+                hp: 160,
+                atk: 18,
+                goldReward: 90,
+                expReward: 80,
+                img: MONSTER_IMAGES.STAGE_2
+            },
+            {
+                stage: 3,
+                name: "게이 던전 최종 보스 (3단계)",
+                maxHp: 420,
+                hp: 420,
+                atk: 32,
+                goldReward: 400,
+                expReward: 300,
+                img: MONSTER_IMAGES.STAGE_3
+            }
+        ];
+
+        /* Game State Variables */
+        let currentStageIndex = 0;
+        let monsterList = JSON.parse(JSON.stringify(defaultMonsters));
+        let currentMonster = monsterList[currentStageIndex];
+
+        let player = {
+            hp: 100,
+            maxHp: 100,
+            mp: 50,
+            maxMp: 50,
+            atk: 16,
+            def: 2,
+            gold: 0,
+            level: 1,
+            exp: 0,
+            smallPotions: 2,
+            largePotions: 0,
+            isDefending: false
+        };
+
+        /* Particle FX Canvas System */
+        const canvas = document.getElementById('effectsCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.radius = Math.random() * 4 + 2;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.04 + 0.02;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createBurst(x, y, color, count = 25) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, idx) => {
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) particles.splice(idx, 1);
+            });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        /* DOM Elements */
+        const monsterImg = document.getElementById('monsterImg');
+        const monsterContainer = document.getElementById('monsterContainer');
+        const monsterName = document.getElementById('monsterName');
+        const monsterHpText = document.getElementById('monsterHpText');
+        const monsterHpBar = document.getElementById('monsterHpBar');
+        const stageBadge = document.getElementById('stageBadge');
+
+        const playerHpText = document.getElementById('playerHpText');
+        const playerHpBar = document.getElementById('playerHpBar');
+        const playerMpText = document.getElementById('playerMpText');
+        const playerMpBar = document.getElementById('playerMpBar');
+        const playerLevel = document.getElementById('playerLevel');
+        const playerGold = document.getElementById('playerGold');
+        const playerAtk = document.getElementById('playerAtk');
+        const playerDef = document.getElementById('playerDef');
+        const smallPotionCount = document.getElementById('smallPotionCount');
+        const largePotionCount = document.getElementById('largePotionCount');
+        const battleLog = document.getElementById('battleLog');
+
+        const slashEffect = document.getElementById('slashEffect');
+
+        /* Helper Functions */
+        function log(msg, colorClass = "text-slate-300") {
+            const p = document.createElement('p');
+            p.className = colorClass;
+            p.innerHTML = msg;
+            battleLog.appendChild(p);
+            battleLog.scrollTop = battleLog.scrollHeight;
+        }
+
+        function spawnDamageText(x, y, text, color = '#f87171') {
+            const el = document.createElement('div');
+            el.className = 'damage-popup';
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.color = color;
+            el.innerText = text;
+            document.body.appendChild(el);
+
+            setTimeout(() => {
+                el.remove();
+            }, 800);
+        }
+
+        function triggerScreenShake() {
+            document.body.classList.add('shake');
+            setTimeout(() => document.body.classList.remove('shake'), 350);
+        }
+
+        /* Update UI View */
+        function updateUI() {
+            // Monster Info Update
+            monsterName.innerText = currentMonster.name;
+            monsterHpText.innerText = `${Math.max(0, currentMonster.hp)} / ${currentMonster.maxHp}`;
+            const mHpPercent = Math.max(0, (currentMonster.hp / currentMonster.maxHp) * 100);
+            monsterHpBar.style.width = `${mHpPercent}%`;
+            monsterImg.src = currentMonster.img;
+
+            // Stage Badge Update
+            stageBadge.innerText = `STAGE ${currentMonster.stage}: 게이 던전 (${currentMonster.name})`;
+
+            // Player Info Update
+            playerHpText.innerText = `${Math.max(0, player.hp)}/${player.maxHp}`;
+            playerHpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+
+            playerMpText.innerText = `${Math.max(0, player.mp)}/${player.maxMp}`;
+            playerMpBar.style.width = `${Math.max(0, (player.mp / player.maxMp) * 100)}%`;
+
+            playerLevel.innerText = `Lv.${player.level}`;
+            playerGold.innerText = `${player.gold} G`;
+            playerAtk.innerText = player.atk;
+            playerDef.innerText = player.def;
+            smallPotionCount.innerText = player.smallPotions;
+            largePotionCount.innerText = player.largePotions;
+        }
+
+        /* Combat Logic */
+        function attackMonster(isSkill = false) {
+            if (currentMonster.hp <= 0 || player.hp <= 0) return;
+
+            let dmg = player.atk;
+            let isCrit = Math.random() < 0.25;
+
+            if (isSkill) {
+                if (player.mp < 15) {
+                    log('<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> 마나가 부족합니다!', 'text-amber-400');
+                    return;
+                }
+                player.mp -= 15;
+                dmg = Math.floor(player.atk * 2.2);
+            }
+
+            if (isCrit) {
+                dmg = Math.floor(dmg * 1.5);
+            }
+
+            // Slash Animation
+            slashEffect.classList.add('slash-active');
+            setTimeout(() => slashEffect.classList.remove('slash-active'), 250);
+
+            // Hit Animation
+            monsterContainer.classList.add('monster-hit');
+            setTimeout(() => monsterContainer.classList.remove('monster-hit'), 250);
+
+            // Particles
+            const rect = monsterContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            createBurst(centerX, centerY, isSkill ? '#c084fc' : '#f97316', isSkill ? 35 : 20);
+            spawnDamageText(centerX - 25, centerY - 20, `${dmg}${isCrit ? ' 크리티컬!' : ''}`, isCrit ? '#facc15' : '#ef4444');
+
+            currentMonster.hp -= dmg;
+            
+            const hitGold = Math.floor(Math.random() * 3) + 2;
+            player.gold += hitGold;
+
+            log(`<i class="fa-solid fa-sword text-pink-400"></i> ${isSkill ? '필살기' : '일반 공격'}! 몬스터에게 <b>${dmg}</b> 피해 (+${hitGold} G)`);
+
+            updateUI();
+
+            if (currentMonster.hp <= 0) {
+                onMonsterDefeated();
+            } else {
+                setTimeout(monsterAttack, 500);
+            }
+        }
+
+        function monsterAttack() {
+            if (currentMonster.hp <= 0 || player.hp <= 0) return;
+
+            let rawDmg = currentMonster.atk;
+
+            let isBossSpecial = (currentMonster.stage === 3 && Math.random() < 0.35);
+            if (isBossSpecial) {
+                rawDmg = Math.floor(rawDmg * 1.5);
+                log(`<i class="fa-solid fa-skull-crossbones text-amber-400"></i> [보스 특수 스킬] <b>${currentMonster.name}</b>의 전멸 공격!`, 'text-amber-400 font-bold');
+            }
+
+            let actualDmg = Math.max(1, rawDmg - player.def);
+
+            if (player.isDefending) {
+                actualDmg = Math.floor(actualDmg * 0.35);
+                player.isDefending = false;
+                log(`<i class="fa-solid fa-shield text-emerald-400"></i> 방어 성공! 데미지를 경감했습니다.`);
+            }
+
+            triggerScreenShake();
+
+            player.hp -= actualDmg;
+
+            const gameBox = document.getElementById('gameContainer').getBoundingClientRect();
+            spawnDamageText(gameBox.left + gameBox.width / 2 - 20, gameBox.bottom - 120, `-${actualDmg}`, '#dc2626');
+
+            log(`<i class="fa-solid fa-claw-marks text-red-500"></i> ${currentMonster.name}의 공격! <b>${actualDmg}</b> 피해를 입었습니다.`, 'text-red-400');
+
+            player.mp = Math.min(player.maxMp, player.mp + 5);
+            updateUI();
+
+            if (player.hp <= 0) {
+                onGameOver();
+            }
+        }
+
+        function defendAndRecover() {
+            if (player.hp <= 0) return;
+            player.isDefending = true;
+            player.mp = Math.min(player.maxMp, player.mp + 12);
+            log(`<i class="fa-solid fa-shield text-emerald-400"></i> 방어 태세! (MP +12 회복)`, 'text-emerald-400');
+            updateUI();
+            setTimeout(monsterAttack, 500);
+        }
+
+        function usePotion(type) {
+            if (type === 'small') {
+                if (player.smallPotions <= 0) {
+                    log('<i class="fa-solid fa-xmark text-slate-400"></i> 소형 물약이 없습니다!', 'text-slate-400');
+                    return;
+                }
+                player.smallPotions--;
+                player.hp = Math.min(player.maxHp, player.hp + 40);
+                log('<i class="fa-solid fa-flask text-pink-400"></i> 소형 체력 물약 사용 (HP +40)', 'text-pink-300');
+            } else {
+                if (player.largePotions <= 0) {
+                    log('<i class="fa-solid fa-xmark text-slate-400"></i> 대형 물약이 없습니다!', 'text-slate-400');
+                    return;
+                }
+                player.largePotions--;
+                player.hp = Math.min(player.maxHp, player.hp + 100);
+                log('<i class="fa-solid fa-flask-vial text-purple-400"></i> 대형 체력 물약 사용 (HP +100)', 'text-purple-300');
+            }
+            updateUI();
+        }
+
+        function onMonsterDefeated() {
+            log(`<i class="fa-solid fa-trophy text-yellow-400"></i> <b>${currentMonster.name}</b> 제압 완료!`, 'text-yellow-400 font-bold');
+
+            player.gold += currentMonster.goldReward;
+            player.exp += currentMonster.expReward;
+
+            if (player.exp >= player.level * 50) {
+                player.level++;
+                player.maxHp += 20;
+                player.hp = player.maxHp;
+                player.atk += 4;
+                log(`<i class="fa-solid fa-angles-up text-amber-300"></i> LEVEL UP! Level ${player.level} 달성!`, 'text-amber-300 font-bold');
+            }
+
+            currentStageIndex++;
+
+            if (currentStageIndex >= monsterList.length) {
+                setTimeout(() => {
+                    document.getElementById('resultIcon').innerHTML = '<i class="fa-solid fa-crown text-yellow-400 animate-bounce"></i>';
+                    document.getElementById('resultTitle').innerText = 'VICTORY!';
+                    document.getElementById('resultTitle').className = 'text-2xl font-black text-yellow-400 tracking-wide';
+                    document.getElementById('resultDesc').innerText = '게이 던전의 최종 보스를 제압하고 정복에 성공했습니다!';
+                    document.getElementById('resultModal').classList.remove('hidden');
+                }, 700);
+            } else {
+                setTimeout(() => {
+                    currentMonster = monsterList[currentStageIndex];
+                    log(`<i class="fa-solid fa-arrow-right text-purple-400"></i> 다음 단계 진입: <b>${currentMonster.name}</b>`, 'text-purple-300 font-bold');
+                    
+                    if (currentStageIndex === 2) {
+                        monsterContainer.classList.add('boss-cutin');
+                        setTimeout(() => monsterContainer.classList.remove('boss-cutin'), 800);
+                    }
+                    updateUI();
+                }, 800);
+            }
+        }
+
+        function onGameOver() {
+            setTimeout(() => {
+                document.getElementById('resultIcon').innerHTML = '<i class="fa-solid fa-skull text-red-500 animate-bounce"></i>';
+                document.getElementById('resultTitle').innerText = 'GAME OVER';
+                document.getElementById('resultTitle').className = 'text-2xl font-black text-red-500 tracking-wide';
+                document.getElementById('resultDesc').innerText = '체력이 바닥났습니다. 게이 던전 1단계부터 다시 시작합니다.';
+                document.getElementById('resultModal').classList.remove('hidden');
+            }, 500);
+        }
+
+        function resetGame() {
+            currentStageIndex = 0;
+            monsterList = JSON.parse(JSON.stringify(defaultMonsters));
+            currentMonster = monsterList[currentStageIndex];
+
+            player = {
+                hp: 100,
+                maxHp: 100,
+                mp: 50,
+                maxMp: 50,
+                atk: 16,
+                def: 2,
+                gold: 0,
+                level: 1,
+                exp: 0,
+                smallPotions: 2,
+                largePotions: 0,
+                isDefending: false
+            };
+
+            battleLog.innerHTML = '<p class="text-purple-400"><i class="fa-solid fa-circle-info mr-1"></i> 게이 던전에 다시 도전합니다! 1단계 몬스터 시작.</p>';
+            document.getElementById('resultModal').classList.add('hidden');
+            updateUI();
+        }
+
+        /* Event Listeners */
+        document.getElementById('btnAttack').addEventListener('click', () => attackMonster(false));
+        document.getElementById('btnSkill').addEventListener('click', () => attackMonster(true));
+        document.getElementById('btnDefend').addEventListener('click', defendAndRecover);
+        document.getElementById('btnUseSmallPotion').addEventListener('click', () => usePotion('small'));
+        document.getElementById('btnUseLargePotion').addEventListener('click', () => usePotion('large'));
+        document.getElementById('btnRestart').addEventListener('click', resetGame);
+
+        /* Shop Handlers */
+        const shopModal = document.getElementById('shopModal');
+        document.getElementById('btnOpenShop').addEventListener('click', () => shopModal.classList.remove('hidden'));
+        document.getElementById('btnCloseShop').addEventListener('click', () => shopModal.classList.add('hidden'));
+
+        document.getElementById('buySmallPotion').addEventListener('click', () => {
+            if (player.gold >= 30) {
+                player.gold -= 30;
+                player.smallPotions++;
+                log('<i class="fa-solid fa-bag-shopping text-amber-400"></i> 소형 물약 구매 완료!', 'text-amber-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        document.getElementById('buyLargePotion').addEventListener('click', () => {
+            if (player.gold >= 75) {
+                player.gold -= 75;
+                player.largePotions++;
+                log('<i class="fa-solid fa-bag-shopping text-amber-400"></i> 대형 물약 구매 완료!', 'text-amber-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        document.getElementById('buyManaPotion').addEventListener('click', () => {
+            if (player.gold >= 40) {
+                player.gold -= 40;
+                player.mp = Math.min(player.maxMp, player.mp + 30);
+                log('<i class="fa-solid fa-bag-shopping text-sky-400"></i> 마나 엘릭서 구매 및 회복 완료!', 'text-sky-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        document.getElementById('buyWeapon1').addEventListener('click', () => {
+            if (player.gold >= 80) {
+                player.gold -= 80;
+                player.atk += 10;
+                log('<i class="fa-solid fa-bag-shopping text-amber-400"></i> 네온 강철 검 장착! (공격력 +10)', 'text-amber-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        document.getElementById('buyWeapon2').addEventListener('click', () => {
+            if (player.gold >= 200) {
+                player.gold -= 200;
+                player.atk += 25;
+                log('<i class="fa-solid fa-bag-shopping text-amber-400"></i> 게이 던전 신화검 장착! (공격력 +25)', 'text-amber-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        document.getElementById('buyArmor').addEventListener('click', () => {
+            if (player.gold >= 140) {
+                player.gold -= 140;
+                player.def += 5;
+                player.maxHp += 30;
+                player.hp += 30;
+                log('<i class="fa-solid fa-bag-shopping text-amber-400"></i> 가디언 갑옷 착용! (방어력 +5, HP +30)', 'text-amber-300');
+                updateUI();
+            } else {
+                log('<i class="fa-solid fa-xmark text-red-400"></i> 골드가 부족합니다!', 'text-red-400');
+            }
+        });
+
+        // Initialize on Window Load
+        window.onload = function() {
+            updateUI();
+        };
+    </script>
+</body>
+</html>
